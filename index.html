@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rhythm Subdivision Grid</title>
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; font-family: 'Inter', sans-serif; }
+    .app {
+      position: relative;
+      width: 100%; max-width: 480px;
+      margin: auto;
+      aspect-ratio: 9 / 16;
+      background: #fafafa;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 8px;
+      box-sizing: border-box;
+      border-radius: 8px; /* Added rounded corners */
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .controls {
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap; /* Allow wrapping for smaller screens */
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 8px; /* Space between control groups */
+    }
+    .bpm-control, .note-control, .key-control {
+      display: flex;
+      align-items: center;
+      padding: 6px 0;
+    }
+    .bpm-control label, .note-control label, .key-control label {
+      margin-right: 8px; font-size: 14px;
+    }
+    .note-control select, .key-control select {
+        padding: 6px 12px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background-color: white;
+        cursor: pointer;
+    }
+    /* Disable styling */
+    .controls button:disabled,
+    .controls select:disabled,
+    .controls input[type="range"]:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .controls button {
+      padding: 6px 12px;
+      font-size: 14px;
+      border: none;
+      background: #007BFF; /* Default blue for all general buttons */
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 4px;
+      transition: background-color 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .controls button:hover { background: #0056b3; }
+    
+    /* Styles for the active mode button (Notes/Rests toggle) */
+    .controls button.active-mode-button {
+      background: #007BFF; /* Active color */
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* Styles for inactive mode buttons (visually distinct but clickable) */
+    .controls button:not(.active-mode-button) {
+      background: #80BFFF; /* Lighter blue for inactive buttons */
+      color: white; /* Keep text white for better visibility */
+      cursor: pointer; /* Still allow pointer to indicate clickability */
+      box-shadow: none; /* No shadow for inactive state */
+    }
+    .controls button:not(.active-mode-button):hover {
+      background: #66AADD; /* Slightly darker light blue on hover for inactive */
+    }
+
+    /* Play button specific styling */
+    #playBtn {
+      background: #66BB6A; /* Light green color */
+    }
+    #playBtn:hover {
+      background: #4CAF50; /* Slightly darker green on hover */
+    }
+    /* Play button "Playing" state */
+    #playBtn.playing {
+      background: #FF4444; /* Red color when playing */
+    }
+    #playBtn.playing:hover {
+      background: #CC0000; /* Darker red on hover when playing */
+    }
+
+
+    /* Clear button specific styling */
+    #clearBtn {
+      background: #66BB6A; /* Light green color, same as Play button */
+    }
+    #clearBtn:hover {
+      background: #4CAF50; /* Slightly darker green on hover, same as Play button */
+    }
+
+    /* Voice Toggle Button Styling */
+    #voiceToggleBtn {
+        background: #FFD700; /* Yellow for "Voice Off" */
+        color: #333;
+    }
+    #voiceToggleBtn.active-mode-button {
+        background: #FFA500; /* Orange for "Voice On" */
+        color: white;
+    }
+    #voiceToggleBtn:hover {
+        background: #DAA520; /* Darker yellow on hover */
+    }
+    #voiceToggleBtn.active-mode-button:hover {
+        background: #FF8C00; /* Darker orange on hover */
+    }
+
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      gap: 4px;
+      width: 100%;
+    }
+    .square .label {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 12px; /* Smaller label for better fit */
+      color: #333;
+      font-weight: bold; /* Make the note text stand out */
+    }
+    .square {
+      width: 100%; padding-top: 100%;
+      background: #fff;
+      border: 1px solid #ccc; /* Lighter border */
+      box-sizing: border-box;
+      position: relative;
+      border-radius: 4px; /* Rounded square corners */
+      cursor: pointer; /* Add cursor pointer to indicate clickability */
+    }
+    .square:hover {
+        filter: brightness(0.95); /* Slightly darken on hover for feedback */
+    }
+    .square.selected {
+        border: 2px solid #FFD700; /* Yellow border for selected square */
+        box-shadow: 0 0 8px rgba(255,215,0,0.7); /* Glow effect */
+    }
+
+    .rows {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      gap: 4px;
+      cursor: pointer;
+    }
+    .cell { width: 100%; padding-top: 100%; position: relative; box-sizing: border-box; }
+    /* Adjusted HSL colors for better contrast and appearance */
+    .row:nth-child(1) .circle { background: hsl(210, 80%, 90%); border: 2px solid hsl(210, 40%, 70%); }
+    .row:nth-child(2) .circle { background: hsl(210, 80%, 75%); border: 2px solid hsl(210, 40%, 60%); }
+    .row:nth-child(3) .circle { background: hsl(210, 80%, 60%); border: 2px solid hsl(210, 40%, 50%); }
+    .row:nth-child(4) .circle { background: hsl(210, 80%, 45%); border: 2px solid hsl(210, 40%, 40%); }
+    .row:nth-child(5) .circle { background: hsl(210, 80%, 30%); border: 2px solid hsl(210, 40%, 30%); }
+    .circle {
+      width: 80%; height: 80%; border-radius: 50%; box-sizing: border-box;
+      position: absolute; top: 10%; left: 10%;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); /* Inner shadow for depth */
+      transition: filter 0.1s ease;
+    }
+    .row:hover .circle { filter: brightness(1.1); }
+    .readme { margin-top: 16px; text-align: left; max-width: 480px; font-size: 14px; color: #333; }
+    .readme ol, .readme ul { padding-left: 20px; }
+
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+        .controls {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .button-group {
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            margin-top: 8px;
+        }
+        .controls button {
+            margin: 0 4px;
+        }
+    }
+
+    /* Header styling */
+    .header-section {
+        width: 100%;
+        text-align: center;
+        margin-bottom: 16px;
+    }
+    .header-section h1 {
+        font-size: 24px;
+        color: #333;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Footer styling */
+    .footer-section {
+        width: 100%;
+        text-align: center;
+        margin-top: 16px;
+        font-size: 12px;
+        color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header-section">
+        <h1>One Bar 1e+a Subdivisions</h1>
+    </div>
+    <div class="controls">
+      <div class="bpm-control">
+        <label for="bpmSlider">BPM: <span id="bpmValue">80</span></label>
+        <input type="range" id="bpmSlider" min="20" max="160" step="1" value="80">
+      </div>
+      <div class="key-control">
+        <label for="keySelect">Key:</label>
+        <select id="keySelect">
+          <option value="F">F Major</option>
+          <option value="C">C Major</option>
+          <option value="G">G Major</option>
+          <option value="D">D Major</option>
+          <option value="A">A Major</option>
+          <option value="E">E Major</option>
+          <option value="B">B Major</option>
+          <option value="F#">F# Major</option>
+          <option value="C#">C# Major</option>
+          <option value="Gb">Gb Major</option>
+          <option value="Db">Db Major</option>
+          <option value="Ab">Ab Major</option>
+          <option value="Eb">Eb Major</option>
+          <option value="Bb">Bb Major</option>
+        </select>
+      </div>
+      <div class="note-control">
+        <label for="noteSelect">Note:</label>
+        <select id="noteSelect">
+          <!-- Options will be populated by JavaScript -->
+        </select>
+      </div>
+      <div class="button-group">
+        <button id="clearBtn">Clear</button>
+        <button id="noteBtn" class="active-mode-button">Notes</button>
+        <button id="restBtn">Rests</button>
+        <button id="voiceToggleBtn">Voice Off</button> <!-- New voice toggle button -->
+        <button id="playBtn">Play</button>
+      </div>
+    </div>
+    <!-- Output squares -->
+    <div class="grid" id="squares"></div>
+    <!-- Subdivision labels -->
+    <div class="grid" id="labels">
+      <div class="square"><span class="label">1</span></div>
+      <div class="square"><span class="label">e</span></div>
+      <div class="square"><span class="label">+</span></div>
+      <div class="square"><span class="label">a</span></div>
+      <div class="square"><span class="label">2</span></div>
+      <div class="square"><span class="label">e</span></div>
+      <div class="square"><span class="label">+</span></div>
+      <div class="square"><span class="label">a</span></div>
+      <div class="square"><span class="label">3</span></div>
+      <div class="square"><span class="label">e</span></div>
+      <div class="square"><span class="label">+</span></div>
+      <div class="square"><span class="label">a</span></div>
+      <div class="square"><span class="label">4</span></div>
+      <div class="square"><span class="label">e</span></div>
+      <div class="square"><span class="label">+</span></div>
+      <div class="square"><span class="label">a</span></div>
+    </div>
+    <!-- Symbols row: first strike symbols -->
+    <div class="grid" id="symbols"></div>
+    <!-- Interactive rows -->
+    <div class="rows">
+      <div class="row" data-count="16"></div>
+      <div class="row" data-count="8"></div>
+      <div class="row" data-count="4"></div>
+      <div class="row" data-count="2"></div>
+      <div class="row" data-count="1"></div>
+    </div>
+    <div class="readme">
+      <p><strong>What is this?</strong> This is a one-measure 1e+a subdivision device for learning purposes. It is not designed for exact musical fidelity or complex compositions, but rather for simple visual and aural segmentation of a single 4/4 measure.</p>
+      <p>
+        <hr>
+        <p>This application was entirely generated by AI, with human input limited to directives and instructions. As a general language model, Gemini understands musical concepts, allowing the creator to build this small application without needing in-depth knowledge of associated libraries or musical terminology.</p>
+      </p>
+      <p><strong>How to use:</strong></p>
+      <ol>
+        <li>Click on any of the 16 display squares to set a starting position for insertion. The selected square will be highlighted.</li>
+        <li>Then, select a subdivision row (sixteenth, eighth, quarter, half, whole) by clicking on its circles to insert a note or rest of that duration, starting from the selected square.</li>
+        <li>If no output square is selected, clicking a subdivision row will insert the note/rest from the **first empty position** in the grid. If the grid is full, it will insert from the beginning of that subdivision (e.g., beat 1, 2, 3, or 4).</li>
+        <li>**Key & Note:</strong> Select a Major Key from the "Key" dropdown. The "Note" dropdown will then show the notes of that key, allowing you to select individual notes for playback.</li>
+        <li>**Note Display:** The active notes will now display their assigned note on the grid!</li>
+        <li>**Symbols Row:</strong> under the 1e+a labels, shows note/rest symbol on first strike per subdivision in the measure.</li>
+        <li>Toggle between <em>Notes</em> and <em>Rests</em> mode with the Note/Rest button.</li>
+        <li>Use the <em>Clear</em> button to reset everything.</li>
+      </ol>
+      <p><strong>Notes & Rest Symbols Legend:</strong></p>
+      <ul>
+        <li><span style="color:hsl(210,80%,90%)">𝅝</span> note / <span style="color:hsl(0,0%,90%)">𝄽</span> rest - Whole note</li>
+        <li><span style="color:hsl(210,80%,75%)">𝅗𝅥</span> note / <span style="color:hsl(0,0%,75%)">𝄼</span> rest - Half note</li>
+        <li><span style="color:hsl(210,80%,60%)">♩</span> note / <span style="color:hsl(0,0%,60%)">𝄻</span> rest - Quarter note</li>
+        <li><span style="color:hsl(210,80%,45%)">♪</span> note / <span style="color:hsl(0,0%,45%)">𝄾</span> rest - Eighth note</li>
+        <li><span style="color:hsl(210,80%,30%)">♫</span> note / <span style="color:hsl(0,0%,30%)">𝄽</span> rest - Sixteenth note</li>
+      </ul>
+    </div>
+    <div class="footer-section">
+      <p>&copy; 2025 Learning Music is Fun!</p>
+    </div>
+  </div>
+  <script>
+    // Global variables for rhythm and UI state
+    let isNote = true;
+    const bpmSlider = document.getElementById('bpmSlider');
+    const bpmValue = document.getElementById('bpmValue');
+    const squares = []; // Array to hold the 16 interactive square elements
+    const gridState = []; // New: Array to hold the state of each 16th note (note, duration, color)
+    let selectedOutputSquareIndex = -1; // New: Stores the index of the clicked output square for insertion point
+
+    // Global variables for speech synthesis
+    let speechSynth = null; 
+    let isVoiceOn = false; // State for voice toggle (on/off)
+    let lastBpmValue = 110; // Stores BPM before voice mode locks it to 40
+    let selectedVoice = null; // Stores the selected female voice
+
+    // Global variables for playback control
+    let playbackInterval = null; // Holds the setInterval ID for stopping playback
+    let currentPlaybackIndex = 0; // Tracks the current 16th note position during playback
+    let totalLoopsCompleted = 0; // Tracks full 16-step measures completed
+
+    // Maps for musical symbols and speech pronunciation
+    const noteSymbols = {1:'♫',2:'♪',4:'♩',8:'𝅗𝅥',16:'𝅝'}; 
+    const restSymbols = {1:'𝄽',2:'𝄾',4:'𝄻',8:'𝄼',16:'𝄽'}; 
+    const subdivisionTextMap = { // Text for speech synthesis based on 1e+a labels
+        "1": "one", "e": "e", "+": "and", "a": "a",
+        "2": "two", "3": "three", "4": "four"
+    };
+
+    let loadedAudioBuffer = null; 
+
+    // UI element references
+    const keySelect = document.getElementById('keySelect');
+    const noteSelect = document.getElementById('noteSelect');
+    const noteBtn = document.getElementById('noteBtn');
+    const restBtn = document.getElementById('restBtn');
+    const voiceToggleBtn = document.getElementById('voiceToggleBtn');
+    const playBtn = document.getElementById('playBtn');
+
+    // Define frequencies for notes (MIDI note number to frequency mapping)
+    const A4 = 440;
+    const C4 = A4 * Math.pow(2, -9/12);
+    const noteFrequencies = {
+      "C3": C4 / 2, "C#3": C4 / 2 * Math.pow(2, 1/12), "Db3": C4 / 2 * Math.pow(2, 1/12),
+      "D3": C4 / 2 * Math.pow(2, 2/12), "Eb3": C4 / 2 * Math.pow(2, 3/12), "E3": C4 / 2 * Math.pow(2, 4/12),
+      "F3": C4 / 2 * Math.pow(2, 5/12), "F#3": C4 / 2 * Math.pow(2, 6/12), "Gb3": C4 / 2 * Math.pow(2, 6/12),
+      "G3": C4 / 2 * Math.pow(2, 7/12), "Ab3": C4 / 2 * Math.pow(2, 8/12), "A3": C4 / 2 * Math.pow(2, 9/12),
+      "Bb3": C4 / 2 * Math.pow(2, 10/12), "B3": C4 / 2 * Math.pow(2, 11/12),
+      "C4": C4, "C#4": C4 * Math.pow(2, 1/12), "Db4": C4 * Math.pow(2, 1/12),
+      "D4": C4 * Math.pow(2, 2/12), "Eb4": C4 * Math.pow(2, 3/12), "E4": C4 * Math.pow(2, 4/12),
+      "F4": C4 * Math.pow(2, 5/12), "F#4": C4 * Math.pow(2, 6/12), "Gb4": C4 * Math.pow(2, 6/12),
+      "G4": C4 * Math.pow(2, 7/12), "Ab4": C4 * Math.pow(2, 8/12), "A4": C4 * Math.pow(2, 9/12),
+      "Bb4": C4 * Math.pow(2, 10/12), "B4": C4 * Math.pow(2, 11/12),
+    };
+
+    // Define Major Scales for key selection dropdown
+    const majorScales = {
+      "C": ["C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4"],
+      "G": ["G3", "A3", "B3", "C4", "D4", "E4", "F#4", "G4"],
+      "D": ["D3", "E3", "F#3", "G3", "A3", "B3", "C#4", "D4"],
+      "A": ["A3", "B3", "C#4", "D4", "E4", "F#4", "G#4", "A4"], 
+      "E": ["E3", "F#3", "G#3", "A3", "B3", "C#4", "D#4", "E4"], 
+      "B": ["B3", "C#4", "D#4", "E4", "F#4", "G#4", "A#4", "B4"], 
+      "F#": ["F#3", "G#3", "A#3", "B3", "C#4", "D#4", "E#4", "F#4"], 
+      "C#": ["C#3", "D#3", "E#3", "F#3", "G#3", "A#3", "B#3", "C#4"], 
+      "F": ["F3", "G3", "A3", "Bb3", "C4", "D4", "E4", "F4"],
+      "Bb": ["Bb3", "C4", "D4", "Eb4", "F4", "G4", "A4", "Bb4"],
+      "Eb": ["Eb3", "F3", "G3", "Ab3", "Bb3", "C4", "D4", "Eb4"],
+      "Ab": ["Ab3", "Bb3", "C4", "Db4", "Eb4", "F4", "G4", "Ab4"],
+      "Db": ["Db3", "Eb3", "F3", "Gb3", "Ab3", "Bb3", "C4", "Db4"],
+      "Gb": ["Gb3", "Ab3", "Bb3", "Cb4", "Db4", "Eb4", "F4", "Gb4"], 
+      "Cb": ["Cb3", "Db3", "Eb3", "Fb3", "Gb3", "Ab3", "Bb3", "Cb4"] 
+    };
+
+    // Event listener for BPM slider changes
+    bpmSlider.addEventListener('input', () => {
+      if (!isVoiceOn) { // Only update if voice is off (slider is enabled)
+        bpmValue.textContent = bpmSlider.value;
+        lastBpmValue = +bpmSlider.value; // Update lastBpmValue
+      } else {
+        // If voice is on, reset slider value if user tries to change it
+        bpmSlider.value = 40;
+      }
+    });
+
+    /**
+     * Renders the visual representation of the grid based on the gridState array.
+     */
+    function renderGrid() {
+        squares.forEach((sq, i) => {
+            const state = gridState[i];
+            const lbl = sq.querySelector('.label');
+
+            sq.style.background = state.color;
+            sq.dataset.bassNote = state.note;
+            sq.dataset.noteDurationSteps = state.duration;
+            lbl.textContent = state.label;
+
+            // Remove previous selection highlight
+            sq.classList.remove('selected');
+        });
+
+        // Apply selection highlight if an output square is selected
+        if (selectedOutputSquareIndex !== -1) {
+            squares[selectedOutputSquareIndex].classList.add('selected');
+        }
+    }
+
+
+    /**
+     * Initializes the grid elements and the gridState array.
+     */
+    function initGrid() {
+      const sqCont = document.getElementById('squares');
+      sqCont.innerHTML = '';
+      for (let i = 0; i < 16; i++) {
+        const sq = document.createElement('div');
+        sq.className = 'square';
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'label';
+        sq.appendChild(labelSpan);
+        sqCont.appendChild(sq);
+        squares[i] = sq;
+        // Initialize gridState with default empty values
+        gridState[i] = { note: '', duration: '', color: '#fff', label: '' };
+      }
+      
+      document.querySelectorAll('.row').forEach((row) => {
+        row.innerHTML = '';
+        for (let i = 0; i < 16; i++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          if (i % row.dataset.count === 0) {
+            const c = document.createElement('div');
+            c.className = 'circle';
+            cell.appendChild(c);
+          }
+          row.appendChild(cell);
+        }
+      });
+      renderGrid(); // Initial render of the empty grid
+    }
+
+    /**
+     * Handles filling grid squares based on subdivision and current mode (Note/Rest).
+     * Updates the gridState and then calls renderGrid.
+     * @param {number} count The subdivision count (e.g., 1 for 16th, 4 for quarter).
+     * @param {string} baseColor The HSL color string of the clicked circle.
+     * @param {number} startIndex The 0-indexed position within the 16 squares where the fill should start.
+     */
+    function handleFill(count, baseColor, startIndex) {
+        const match = baseColor.match(/hsl\(\d+,\s*\d+%,\s*(\d+)%\)/);
+        const light = match ? match[1] : '50';
+        const restVisualColor = `hsl(${isNote ? 210 : 0}, 0%, ${light}%)`; 
+
+        // Clear previous note/rest data for the affected range in gridState
+        for (let i = 0; i < count; i++) {
+            const targetIndex = (startIndex + i) % squares.length;
+            gridState[targetIndex] = { note: '', duration: '', color: '#fff', label: '' };
+        }
+
+        // Update gridState based on current mode
+        for (let i = 0; i < count; i++) {
+            const targetIndex = (startIndex + i) % squares.length;
+            if (isNote) { // Notes mode
+                if (i === 0) { // First square of the note (attack)
+                    gridState[targetIndex] = { 
+                        note: noteSelect.value, 
+                        duration: count.toString(), 
+                        color: baseColor, 
+                        label: noteSelect.value 
+                    };
+                } else { // Subsequent squares for visual sustain
+                    gridState[targetIndex] = { 
+                        note: '', 
+                        duration: '', 
+                        color: restVisualColor, 
+                        label: '' 
+                    };
+                }
+            } else { // Rests mode
+                gridState[targetIndex] = { 
+                    note: '', 
+                    duration: '', 
+                    color: restVisualColor, 
+                    label: '' 
+                };
+            }
+        }
+        renderGrid(); // Re-render the entire grid after updating state
+        selectedOutputSquareIndex = -1; // Reset selected square after placing
+        squares.forEach(sq => sq.classList.remove('selected')); // Remove highlight
+    }
+
+
+    /**
+     * Plays a synthetic bass sound using the Web Audio API.
+     * @param {AudioBuffer} audioBuffer - Not used in synthetic sound, kept for signature.
+     * @param {number} time - The audio context time at which to schedule the sound.
+     * @param {string} targetNote - The note name (e.g., "C3", "F#4").
+     * @param {number} duration - The duration of the note in seconds.
+     */
+    function playSound(audioBuffer, time, targetNote, duration) {
+        const noteFreq = noteFrequencies[targetNote] || noteFrequencies["F3"];
+
+        const osc = audioContext.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(noteFreq, audioContext.currentTime);
+
+        const subOsc = audioContext.createOscillator();
+        subOsc.type = 'sine';
+        subOsc.frequency.setValueAtTime(noteFreq / 2, audioContext.currentTime);
+
+        const mixerGain = audioContext.createGain();
+        mixerGain.gain.value = 0.8;
+        const subOscGain = audioContext.createGain();
+        subOscGain.gain.value = 0.4;
+
+        osc.connect(mixerGain);
+        subOsc.connect(subOscGain);
+        subOscGain.connect(mixerGain);
+
+        const filter = audioContext.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(400, time); 
+        filter.Q.setValueAtTime(1.5, time); 
+
+        const gainNode = audioContext.createGain();
+        gainNode.gain.setValueAtTime(0, time);
+
+        const attackTime = 0.005;
+        const decayTime = 0.08;
+        const sustainLevel = 0.5;
+        const releaseTime = 0.05;
+
+        const peakTime = time + attackTime;
+        const sustainStartTime = time + attackTime + decayTime;
+        const releaseStartTime = time + duration - releaseTime;
+        const endTime = time + duration;
+
+        gainNode.gain.linearRampToValueAtTime(1, peakTime);
+
+        const calculatedSustainStartTime = Math.max(peakTime, sustainStartTime);
+        const calculatedReleaseStartTime = Math.max(calculatedSustainStartTime, releaseStartTime);
+        const calculatedEndTime = Math.max(calculatedReleaseStartTime, endTime);
+
+        gainNode.gain.linearRampToValueAtTime(sustainLevel, calculatedSustainStartTime);
+        gainNode.gain.setValueAtTime(sustainLevel, calculatedReleaseStartTime);
+        gainNode.gain.linearRampToValueAtTime(0.001, calculatedEndTime);
+
+        mixerGain.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        osc.start(time);
+        subOsc.start(time);
+        osc.stop(calculatedEndTime + 0.1); 
+        subOsc.stop(calculatedEndTime + 0.1);
+    }
+
+    /**
+     * Plays a synthetic "shh" (white noise swoosh) sound using Web Audio API.
+     * @param {number} time - The audio context time at which to schedule the sound.
+     */
+    function playShhSound(time) {
+        if (!audioContext) return;
+
+        const bufferSize = audioContext.sampleRate * 0.1;
+        const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+
+        const noiseSource = audioContext.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+
+        const filter = audioContext.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1000, time);
+        filter.Q.setValueAtTime(1, time);
+
+        const gainNode = audioContext.createGain();
+        gainNode.gain.setValueAtTime(0.001, time);
+
+        const shhDuration = 0.15;
+        const attack = 0.01;
+        const decay = 0.05;
+        const peak = 0.5;
+
+        gainNode.gain.linearRampToValueAtTime(peak, time + attack);
+        gainNode.gain.linearRampToValueAtTime(0.001, time + attack + decay);
+
+        noiseSource.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        noiseSource.start(time);
+        noiseSource.stop(time + shhDuration);
+    }
+
+
+    /**
+     * Plays a single 16th-note step of the rhythm sequence.
+     * This function is called repeatedly by setInterval during playback.
+     */
+    function playSequenceStep() {
+        if (!playbackInterval) return;
+
+        const step = (60 / +bpmSlider.value) / 4;
+        const noteTime = audioContext.currentTime;
+
+        const flickerDuration = Math.min(step * 0.5, 0.05);
+
+        const sq = squares[currentPlaybackIndex];
+        const originalBg = getComputedStyle(sq).backgroundColor;
+        const currentSquareState = gridState[currentPlaybackIndex]; // Get state from gridState
+        const squareNote = currentSquareState.note;
+
+        const isNoteStart = squareNote !== "";
+
+        sq.style.background = '#000';
+        (function(squareElement, originalBackground) {
+            setTimeout(() => {
+                squareElement.style.background = originalBackground;
+            }, (flickerDuration * 1000));
+        })(sq, originalBg);
+
+
+        if (isNoteStart) { 
+            const noteDurationSteps = parseInt(currentSquareState.duration);
+            let noteDuration = noteDurationSteps * step; 
+            noteDuration = Math.max(0.01, noteDuration);
+            playSound(loadedAudioBuffer, noteTime, squareNote, noteDuration);
+        }
+
+        if (isVoiceOn) {
+            const labelTextContent = document.getElementById('labels').querySelectorAll('.label')[currentPlaybackIndex].textContent;
+            
+            if (isNoteStart) {
+                const utteranceText = subdivisionTextMap[labelTextContent];
+                if (utteranceText) {
+                    const currentUtterance = new SpeechSynthesisUtterance(utteranceText);
+                    currentUtterance.rate = 1.2;
+                    currentUtterance.volume = 0.8;
+                    if (selectedVoice) {
+                        currentUtterance.voice = selectedVoice;
+                    }
+                    if (speechSynth.speaking) {
+                        speechSynth.cancel();
+                    }
+                    speechSynth.speak(currentUtterance);
+                }
+            } else {
+                playShhSound(audioContext.currentTime);
+            }
+        }
+
+        currentPlaybackIndex = (currentPlaybackIndex + 1) % squares.length;
+
+        if (currentPlaybackIndex === 0) {
+            totalLoopsCompleted++;
+            if (totalLoopsCompleted >= 2) {
+                stopPlayback();
+            }
+        }
+    }
+
+
+    /**
+     * Starts the continuous playback loop of the rhythm sequence.
+     */
+    function startPlayback() {
+        if (playbackInterval) {
+            stopPlayback();
+        }
+        playBtn.textContent = 'Playing';
+        playBtn.classList.add('playing');
+        currentPlaybackIndex = 0;
+        totalLoopsCompleted = 0;
+        
+        const intervalTime = (60 / +bpmSlider.value) / 4 * 1000;
+        playbackInterval = setInterval(playSequenceStep, intervalTime);
+        playSequenceStep();
+        
+        document.getElementById('clearBtn').disabled = true;
+        document.getElementById('noteBtn').disabled = true;
+        document.getElementById('restBtn').disabled = true;
+        document.getElementById('voiceToggleBtn').disabled = true;
+        document.getElementById('keySelect').disabled = true;
+        document.getElementById('noteSelect').disabled = true;
+        if (!isVoiceOn) { 
+            bpmSlider.disabled = true;
+        }
+        // Disable clicks on interactive rows (circles) and individual squares
+        document.querySelectorAll('.row').forEach(row => row.style.pointerEvents = 'none'); 
+        squares.forEach(sq => sq.style.pointerEvents = 'none'); // Disable clicks on main squares
+    }
+
+    /**
+     * Stops the ongoing playback loop and resets UI elements.
+     */
+    function stopPlayback() {
+        clearInterval(playbackInterval);
+        playbackInterval = null;
+        playBtn.textContent = 'Play';
+        playBtn.classList.remove('playing');
+        if (speechSynth.speaking) {
+            speechSynth.cancel();
+        }
+        if (isVoiceOn) { 
+            isVoiceOn = false;
+            voiceToggleBtn.textContent = 'Voice Off';
+            voiceToggleBtn.classList.remove('active-mode-button');
+            bpmSlider.value = lastBpmValue;
+            bpmValue.textContent = lastBpmValue;
+            bpmSlider.disabled = false;
+        }
+
+        document.getElementById('clearBtn').disabled = false;
+        document.getElementById('noteBtn').disabled = false;
+        document.getElementById('restBtn').disabled = false;
+        document.getElementById('voiceToggleBtn').disabled = false;
+        document.getElementById('keySelect').disabled = false;
+        document.getElementById('noteSelect').disabled = false;
+        if (!isVoiceOn) { 
+            bpmSlider.disabled = false;
+        }
+        // Re-enable clicks on interactive rows (circles) and individual squares
+        document.querySelectorAll('.row').forEach(row => row.style.pointerEvents = 'auto'); 
+        squares.forEach(sq => sq.style.pointerEvents = 'auto'); // Re-enable clicks on main squares
+    }
+
+
+    /**
+     * Applies a rhythm string and optional note sequence to the gridState.
+     * This function is used for initializing or loading predefined rhythms.
+     * @param {string} rhythmString - A string of 'X' (note) and 'O' (rest) for rhythm.
+     * @param {string[]|null} noteSequence - An array of note names for each 16th step, or null to use current selected note.
+     */
+    function applyRhythmToGrid(rhythmString, noteSequence = null) {
+        const noteColorElement = document.querySelector('.row[data-count="16"] .circle');
+        const noteColor = noteColorElement ? getComputedStyle(noteColorElement).backgroundColor : 'rgb(198, 226, 255)';
+        const restColor = 'rgb(255, 255, 255)';
+        const currentSelectedNote = noteSelect.value;
+
+        for (let i = 0; i < 16; i++) {
+            const char = rhythmString[i];
+            if (char === 'X') {
+                const noteToAssign = noteSequence && noteSequence[i] ? noteSequence[i] : currentSelectedNote;
+                gridState[i] = { note: noteToAssign, duration: "1", color: noteColor, label: noteToAssign };
+            } else if (char === 'O') {
+                gridState[i] = { note: '', duration: "1", color: restColor, label: '' };
+            }
+        }
+        
+        // Post-process for note sequences to correctly set longer durations if implied
+        if (noteSequence) {
+            for (let i = 0; i < 16; i++) {
+                const state = gridState[i];
+                const note = noteSequence[i]; // The original note at this position from the sequence
+                if (note && note !== "") { 
+                    let durationSteps = 1;
+                    for (let j = i + 1; j < 16; j++) {
+                        if (noteSequence[j] === "") { 
+                            durationSteps++;
+                            // Visuals for sustain parts will use the original note's color
+                            gridState[j] = { note: '', duration: '', color: gridState[i].color, label: '' };
+                        } else {
+                            break;
+                        }
+                    }
+                    gridState[i].duration = durationSteps.toString();
+                }
+            }
+        }
+        renderGrid(); // Render the grid after applying the preloaded rhythm
+    }
+
+
+    /**
+     * Populates the "Note" dropdown based on the currently selected "Key".
+     */
+    function updateBassNotesDropdown() {
+      const selectedKey = keySelect.value;
+      const notesInKey = majorScales[selectedKey];
+
+      noteSelect.innerHTML = '';
+
+      if (notesInKey) {
+        notesInKey.forEach(note => {
+          const option = document.createElement('option');
+          option.value = note;
+          option.textContent = note;
+          noteSelect.appendChild(option);
+        });
+      }
+
+      if (notesInKey && notesInKey.length > 0) {
+        noteSelect.value = notesInKey[0];
+      }
+    }
+
+    /**
+     * Toggles the voice commentary on/off and manages BPM lock/unlock.
+     */
+    function toggleVoice() {
+      isVoiceOn = !isVoiceOn;
+
+      if (isVoiceOn) {
+        voiceToggleBtn.textContent = 'Voice On';
+        voiceToggleBtn.classList.add('active-mode-button');
+        lastBpmValue = +bpmSlider.value;
+        bpmSlider.value = 40;
+        bpmValue.textContent = 40;
+        bpmSlider.disabled = true;
+        if (speechSynth.speaking) {
+            speechSynth.cancel();
+        }
+      } else {
+        voiceToggleBtn.textContent = 'Voice Off';
+        voiceToggleBtn.classList.remove('active-mode-button');
+        bpmSlider.value = lastBpmValue;
+        bpmValue.textContent = lastBpmValue;
+        bpmSlider.disabled = false;
+        if (speechSynth.speaking) {
+            speechSynth.cancel();
+        }
+      }
+    }
+
+    /**
+     * Attempts to find and set a female voice for speech synthesis,
+     * prioritizing local voices.
+     */
+    function loadVoices() {
+        const voices = speechSynth.getVoices();
+        for (let i = 0; i < voices.length; i++) {
+            if (voices[i].name.toLowerCase().includes('female')) {
+                selectedVoice = voices[i];
+                break;
+            }
+        }
+        if (!selectedVoice && voices.length > 0) {
+            selectedVoice = voices[0];
+        }
+        if (!selectedVoice) {
+            console.warn("No suitable voice found. Using system default.");
+        }
+    }
+
+
+    /**
+     * Initializes the application: sets up audio context, binds event listeners,
+     * and loads initial rhythm.
+     */
+    function setup() {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      speechSynth = window.speechSynthesis; 
+
+      if (speechSynth.onvoiceschanged !== undefined) {
+          speechSynth.onvoiceschanged = loadVoices;
+      }
+      loadVoices();
+
+      initGrid();
+
+      keySelect.value = "C";
+      updateBassNotesDropdown();
+
+      // Preload a simplified bass line - this will now set the initial gridState
+      const preloadedRhythm = "XOOOXXOOXOOOXXXX"; 
+      const preloadedNoteSequence = [
+          "C3", "", "", "",  
+          "F3", "G3", "", "",  
+          "Ab3", "", "", "",  
+          "Bb3", "", "", ""     
+      ];
+      applyRhythmToGrid(preloadedRhythm, preloadedNoteSequence);
+
+
+      // Event listener for interactive rhythm rows (circles)
+      document.querySelectorAll('.row').forEach(row => row.addEventListener('click', (event) => {
+        const clickedCell = event.target.closest('.cell');
+        const clickedCircle = event.target.closest('.circle');
+
+        if (clickedCell && clickedCircle) {
+            const count = +row.dataset.count;
+            const baseColor = getComputedStyle(clickedCircle).backgroundColor;
+
+            let startIndex;
+            if (selectedOutputSquareIndex !== -1) {
+                // If an output square is selected, use its index as the start
+                startIndex = selectedOutputSquareIndex;
+            } else {
+                // If no output square is selected, find the *first* empty position in gridState
+                let firstEmptyIndex = -1;
+                for (let i = 0; i < squares.length; i++) { // Iterate forwards from 0 to 15
+                    // Check if the square is visually empty (white or transparent)
+                    if (gridState[i].color === '#fff' || gridState[i].color === 'rgb(255, 255, 255)' || gridState[i].color === 'rgba(0, 0, 0, 0)') {
+                        firstEmptyIndex = i;
+                        break;
+                    }
+                }
+
+                if (firstEmptyIndex !== -1) {
+                    startIndex = firstEmptyIndex;
+                } else {
+                    // If no empty position found (grid is full), default to sequential fill from the clicked circle's position in its row
+                    const cellsInRow = Array.from(row.querySelectorAll('.cell'));
+                    const clickedCellIndex = cellsInRow.indexOf(clickedCell);
+                    startIndex = clickedCellIndex * count;
+                }
+            }
+            handleFill(count, baseColor, startIndex);
+        }
+      }));
+
+      // NEW: Event listener for direct clicks on the 16 display squares
+      squares.forEach((sq, index) => {
+          sq.addEventListener('click', () => {
+              // Remove highlight from previously selected square
+              if (selectedOutputSquareIndex !== -1 && squares[selectedOutputSquareIndex]) {
+                  squares[selectedOutputSquareIndex].classList.remove('selected');
+              }
+              selectedOutputSquareIndex = index; // Set the new selected index
+              sq.classList.add('selected'); // Add highlight to the newly selected square
+          });
+      });
+
+      // Event listener for the Clear button
+      document.getElementById('clearBtn').onclick = () => {
+        // Reset gridState to all empty/white
+        for (let i = 0; i < 16; i++) {
+            gridState[i] = { note: '', duration: '', color: '#fff', label: '' };
+        }
+        renderGrid(); // Re-render the grid
+        if (speechSynth.speaking) {
+            speechSynth.cancel(); 
+        }
+        stopPlayback(); // Stop playback on clear
+        
+        selectedOutputSquareIndex = 0; // Reset selected square index to the first square
+        squares[0].classList.add('selected'); // Add highlight to the first square
+      };
+
+      // Helper function to manage active/inactive state of Note/Rest buttons
+      function setActiveMode(mode) {
+          if (mode === 'notes') {
+              isNote = true;
+              noteBtn.classList.add('active-mode-button');
+              restBtn.classList.remove('active-mode-button');
+          } else { 
+              isNote = false;
+              restBtn.classList.add('active-mode-button');
+              noteBtn.classList.remove('active-mode-button');
+          }
+      }
+
+      // Set initial button states
+      setActiveMode('notes');
+      voiceToggleBtn.textContent = 'Voice Off';
+      voiceToggleBtn.classList.remove('active-mode-button');
+      bpmSlider.disabled = false;
+
+
+      // Event listeners for mode buttons
+      noteBtn.onclick = () => setActiveMode('notes');
+      restBtn.onclick = () => setActiveMode('rests');
+      voiceToggleBtn.onclick = toggleVoice;
+
+      // Event listener for the Play/Stop button
+      playBtn.onclick = () => {
+        if (playbackInterval) {
+            stopPlayback();
+        } else {
+            startPlayback();
+        }
+      };
+
+      // Event listener for key selection dropdown
+      keySelect.addEventListener('change', updateBassNotesDropdown);
+
+      // Event listener for note selection dropdown (for preview sound)
+      noteSelect.addEventListener('change', () => {
+        playSound(null, audioContext.currentTime, noteSelect.value, 0.3);
+      });
+    }
+
+    // Call setup when the DOM is fully loaded
+    window.addEventListener('DOMContentLoaded', setup);
+  </script>
+</body>
+</html>
