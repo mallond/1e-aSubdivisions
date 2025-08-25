@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Number Grid Caller</title>
+  <style>
+    :root {
+      --fg: #111;
+      --bg: #fff;
+      --muted: #666;
+      --accent: #0a7;
+      --ring: rgba(0, 170, 119, 0.25);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--fg);
+      line-height: 1.35;
+    }
+    header {
+      padding: 16px;
+      border-bottom: 1px solid #eee;
+      position: sticky; top: 0; background: var(--bg); z-index: 10;
+    }
+    h1 { margin: 0; font-size: 1.25rem; }
+    .container { max-width: 800px; margin: 0 auto; padding: 16px; }
+    #now-calling {
+      margin-top: 8px;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px dashed #eee;
+    }
+    .cells {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    @media (min-width: 560px) {
+      .cells { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    .cell {
+      display: grid; place-items: center;
+      padding: 10px 8px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      font-variant-numeric: tabular-nums;
+      font-size: 1.1rem;
+      background: #fafafa;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .cell.active {
+      outline: 3px solid var(--ring);
+      background: #f6fffb;
+      border-color: var(--accent);
+    }
+    .btn {
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+      background: #fff;
+      font-weight: 600;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn.row-btn { white-space: nowrap; }
+    .controls {
+      position: sticky; bottom: 0; background: var(--bg);
+      border-top: 1px solid #eee; padding: 12px 16px;
+      display: grid; gap: 12px;
+    }
+    .control-line {
+      display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap;
+      align-items: center;
+    }
+    .range-line {
+      display: grid; gap: 8px;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      color: var(--muted);
+    }
+    input[type="range"] { width: 100%; }
+    small.note { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Number Grid Caller</h1>
+      <div id="now-calling" aria-live="polite">Ready.</div>
+      <small class="note">Tip: the voice reads each digit (e.g., 1 3 5 7).</small>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="grid" aria-label="Number Grid"></section>
+  </main>
+
+  <footer class="controls">
+    <div class="container">
+      <div class="control-line">
+        <button id="call-all" class="btn" type="button">🎲 Call Random (All)</button>
+        <button id="auto-toggle" class="btn" type="button" data-state="stopped">▶ Start Auto (All)</button>
+        <button id="mute-toggle" class="btn" type="button" aria-pressed="false">🔊 Mute Off</button>
+      </div>
+      <div class="range-line">
+        <label for="delay">Callout delay</label>
+        <input id="delay" type="range" min="1" max="10" step="1" value="3" />
+        <output id="delay-label" for="delay">3s</output>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const GRID = [
+      ["1357","3157","5137","7135"],
+      ["1375","3175","5173","7153"],
+      ["1537","3517","5317","7315"],
+      ["1573","3571","5371","7351"],
+      ["1735","3715","5713","7513"],
+      ["1753","3751","5731","7531"],
+    ];
+
+    let muted = false;
+    const muteBtn = document.getElementById("mute-toggle");
+    const updateMuteUI = () => {
+      muteBtn.textContent = muted ? "🔇 Mute On" : "🔊 Mute Off";
+      muteBtn.setAttribute("aria-pressed", String(muted));
+      if (muted && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    };
+    muteBtn.addEventListener("click", () => { muted = !muted; updateMuteUI(); });
+    updateMuteUI();
+
+    const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const speakDigits = (num) => {
+      if (muted) return;
+      const text = num.split("").join(" ");
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.95;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    };
+    const announce = (num, source = "All") => {
+      document.getElementById("now-calling").textContent = `Calling: ${num} (${source})`;
+      speakDigits(num);
+    };
+
+    const gridHost = document.getElementById("grid");
+    const rowTimers = new Map();
+    const rowTimerRefs = new Map();
+
+    const cellByNumber = new Map();
+    let highlightTimer = null;
+    let lastHighlighted = null;
+    const clearHighlightNow = () => {
+      if (highlightTimer) { clearTimeout(highlightTimer); highlightTimer = null; }
+      if (lastHighlighted) { lastHighlighted.classList.remove("active"); lastHighlighted = null; }
+    };
+    const setHighlight = (num, secs) => {
+      clearHighlightNow();
+      const el = cellByNumber.get(num);
+      if (!el) return;
+      el.classList.add("active");
+      lastHighlighted = el;
+      highlightTimer = setTimeout(() => {
+        if (lastHighlighted) lastHighlighted.classList.remove("active");
+        lastHighlighted = null;
+        highlightTimer = null;
+      }, secs * 1000);
+    };
+
+    const range = document.getElementById("delay");
+    const delayLabel = document.getElementById("delay-label");
+    const secs = () => parseInt(range.value, 10);
+    const updateDelayLabel = () => { delayLabel.textContent = `${range.value}s`; };
+    updateDelayLabel();
+
+    range.addEventListener("input", () => {
+      for (const [rIdx, id] of rowTimers.entries()) {
+        clearInterval(id);
+        const { row, btn } = rowTimerRefs.get(rIdx);
+        const newId = startRowInterval(rIdx, row, btn);
+        rowTimers.set(rIdx, newId);
+      }
+      updateDelayLabel();
+    });
+
+    const stopAll = () => {
+      stopAuto();
+      for (const [rIdx] of rowTimers) {
+        const { btn } = rowTimerRefs.get(rIdx);
+        stopRowInterval(rIdx, btn);
+      }
+      clearHighlightNow();
+    };
+
+    const callFromRow = (rIdx, row) => {
+      const choice = pickRandom(row);
+      setHighlight(choice, secs());
+      announce(choice, `Row ${rIdx + 1}`);
+    };
+
+    const startRowInterval = (rIdx, row, btn) => {
+      stopAll();
+      callFromRow(rIdx, row);
+      btn.textContent = "⏹ Stop Row";
+      btn.dataset.state = "running";
+      return setInterval(() => callFromRow(rIdx, row), secs() * 1000);
+    };
+
+    const stopRowInterval = (rIdx, btn) => {
+      const id = rowTimers.get(rIdx);
+      if (id) clearInterval(id);
+      rowTimers.delete(rIdx);
+      btn.textContent = "▶ Row Auto";
+      btn.dataset.state = "stopped";
+      clearHighlightNow();
+    };
+
+    GRID.forEach((row, rIdx) => {
+      const rowEl = document.createElement("div");
+      rowEl.className = "row";
+
+      const cells = document.createElement("div");
+      cells.className = "cells";
+      row.forEach((num) => {
+        const span = document.createElement("span");
+        span.className = "cell";
+        span.textContent = num;
+        cells.appendChild(span);
+        cellByNumber.set(num, span);
+      });
+
+      const btn = document.createElement("button");
+      btn.className = "btn row-btn";
+      btn.type = "button";
+      btn.textContent = "▶ Row Auto";
+      btn.dataset.state = "stopped";
+
+      rowTimerRefs.set(rIdx, { row, btn });
+
+      btn.addEventListener("click", () => {
+        if (rowTimers.has(rIdx)) {
+          stopRowInterval(rIdx, btn);
+        } else {
+          const id = startRowInterval(rIdx, row, btn);
+          rowTimers.set(rIdx, id);
+        }
+      });
+
+      rowEl.appendChild(cells);
+      rowEl.appendChild(btn);
+      gridHost.appendChild(rowEl);
+    });
+
+    const flatten = GRID.flat();
+    document.getElementById("call-all").addEventListener("click", () => {
+      stopAll();
+      const choice = pickRandom(flatten);
+      setHighlight(choice, secs());
+      announce(choice, "All");
+    });
+
+    let autoTimer = null;
+    const autoBtn = document.getElementById("auto-toggle");
+    const startAuto = () => {
+      stopAll();
+      const pickAndAnnounce = () => {
+        const choice = pickRandom(flatten);
+        setHighlight(choice, secs());
+        announce(choice, "Auto");
+      };
+      pickAndAnnounce();
+      autoTimer = setInterval(pickAndAnnounce, secs() * 1000);
+      autoBtn.textContent = "⏹ Stop Auto";
+    };
+    const stopAuto = () => {
+      clearInterval(autoTimer);
+      autoTimer = null;
+      autoBtn.textContent = "▶ Start Auto";
+    };
+    autoBtn.addEventListener("click", () => { autoTimer ? stopAuto() : startAuto(); });
+
+    window.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        stopAll();
+      }
+    });
+  </script>
+</body>
+</html>
