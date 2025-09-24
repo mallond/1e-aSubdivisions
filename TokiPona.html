@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Toki Pona → Tongue-Click Synth + Symbols (UCSUR local font)</title>
+<style>
+  :root{--bg:#0b0f14;--card:#121821;--ink:#e8eef7;--ink-dim:#b5c3d6;--muted:#243042;--accent:#7cc0ff;--ok:#7fffac}
+  html,body{height:100%}
+  body{margin:0;background:#0b0f14;color:var(--ink);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;display:flex;align-items:center;justify-content:center;padding:20px}
+  .app{width:min(1200px,100%);background:linear-gradient(180deg,#121821,#0f1620);border:1px solid #1d2736;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.45);padding:18px}
+  h1{margin:0 0 12px;font-size:20px;color:#d8e7ff}
+  .layout{display:grid;grid-template-columns: 1.1fr .9fr; gap:14px}
+  .panel{background:var(--card);border:1px solid #223044;border-radius:12px;padding:12px}
+  textarea{width:100%;min-height:84px;resize:vertical;background:#0c121a;color:var(--ink);border:1px solid #2a3750;border-radius:12px;padding:12px;font-size:15px}
+  select,input[type="number"],input[type="range"]{width:100%;background:#0c121a;color:var(--ink);border:1px solid #2a3750;border-radius:10px;padding:8px 10px;font-size:14px}
+  label{font-size:13px;color:var(--ink-dim)}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  button{background:#0f1b2a;color:var(--ink);border:1px solid #2b3a54;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600}
+  button.primary{background:linear-gradient(180deg,#1a3550,#12253a);border-color:#385a86}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+  .hint{color:#a9b8cc;font-size:12px}
+  .meter{flex:1;height:6px;background:#0b121b;border:1px solid #223146;border-radius:999px;overflow:hidden}
+  .bar{height:100%;width:0%;background:linear-gradient(90deg,#64b5ff,#7fffac);transition:width .2s}
+  .row{display:flex;gap:10px;align-items:center}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  /* Symbols browser */
+  .symbols{display:grid;grid-template-rows:auto 1fr auto;gap:8px;height:520px}
+  .search{display:flex;gap:8px}
+  .list{overflow:auto;border:1px solid #2a3750;border-radius:10px;background:#0c121a;padding:6px}
+  .item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer}
+  .item:hover{background:#0f1620}
+  .sym-word{font-weight:650}
+  .glyph{font-family:"NasinNanpa","Segoe UI Symbol","Noto Sans Symbols2",sans-serif; font-size:22px; line-height:1}
+  .pill{display:inline-block;padding:4px 8px;border-radius:999px;border:1px solid #334458;background:#0c141d;margin:0 6px 6px 0}
+  .legend{color:#cfe3ff}
+  .spbox{display:flex;gap:10px;align-items:center}
+  .bigglyph{
+    font-family:"NasinNanpa","Segoe UI Symbol","Noto Sans Symbols2",sans-serif;
+    font-size:40px; line-height:1;border:1px dashed #334458;border-radius:10px;padding:8px;min-width:64px;text-align:center
+  }
+</style>
+
+<!-- === Local UCSUR font (place file at ./fonts/) === -->
+<style>
+@font-face{
+  font-family:"NasinNanpa";
+  src:url("./nasin-nanpa-5.0.0-beta.2-UCSUR.otf?v=1") format("opentype");
+  font-display: swap;
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🎧 Toki Pona → Tongue-Click Synth + Symbols</h1>
+
+  <div class="layout">
+    <!-- LEFT: synth + preview -->
+    <div class="panel">
+      <div class="two">
+        <div>
+          <label for="text">Input</label>
+          <textarea id="text" placeholder="toki pona li pona! jan li toki."></textarea>
+          <div class="hint">
+            Modes:
+            <span class="pill">Toki Pona: CV(+n) → Click Kana</span>
+            <span class="pill">Click Kana: KA/KE/KI/KO/KU…</span>
+            <span class="pill">Letter: A–Z rhythmic</span>
+          </div>
+        </div>
+        <div>
+          <div class="grid3">
+            <div>
+              <label for="mode">Mode</label>
+              <select id="mode">
+                <option value="toki">Toki Pona</option>
+                <option value="kana">Click Kana</option>
+                <option value="letter">Letter (A–Z)</option>
+              </select>
+            </div>
+            <div>
+              <label for="tempo">Tempo (ms / unit)</label>
+              <input id="tempo" type="number" value="90" min="40" max="400" />
+            </div>
+            <div>
+              <label for="volume">Volume</label>
+              <input id="volume" type="range" min="0" max="1" step="0.01" value="0.85" />
+            </div>
+          </div>
+          <div class="btns">
+            <button id="play" class="primary">▶ Play</button>
+            <button id="stop">■ Stop</button>
+            <button id="ex1">Example</button>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <div class="meter"><div id="bar" class="bar"></div></div>
+            <div class="hint mono">Enter = Play • Esc = Stop</div>
+          </div>
+
+          <!-- Preview (no message text; clean) -->
+          <div style="margin-top:10px" class="panel">
+            <label>Preview (Sitelen Pona)</label>
+            <div class="spbox">
+              <div id="spGlyph" title="Sitelen Pona preview"></div>
+            </div>
+            <div style="margin-top:8px">
+              <button type="button" id="testGlyph">Test known glyph</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:12px">
+        <label>Parsed tokens (what you’ll hear)</label>
+        <div id="tokens" class="mono hint"></div>
+        <div class="legend mono" style="margin-top:6px">
+          Legend: <span class="pill">· dental</span> <span class="pill">~ slur</span> <span class="pill">&gt; side</span> <span class="pill">^ back-palate</span> <span class="pill">= cheek</span> <span class="pill">— long</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: symbols browser -->
+    <div class="panel symbols">
+      <div class="search">
+        <input id="q" type="text" placeholder="Search symbols… (e.g., toki, pona, jan)" style="flex:1;background:#0c121a;color:var(--ink);border:1px solid #2a3750;border-radius:10px;padding:10px 12px" />
+        <button id="clear">Clear</button>
+      </div>
+      <div id="list" class="list"></div>
+      <div class="hint">
+        Hover to see meaning · Click to insert & play.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Audio Engine ===== */
+const Audio = (() => {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = ctx.createGain(); master.gain.value = 0.85; master.connect(ctx.destination);
+  const now = () => ctx.currentTime;
+
+  function env(t0, a=0.001, d=0.05, s=0.0001){
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(1, t0 + a);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, s), t0 + a + d);
+    return g;
+  }
+  function noiseBuf(){
+    const N = ctx.sampleRate * 0.25, b = ctx.createBuffer(1, N, ctx.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i=0;i<N;i++) d[i] = (Math.random()*2-1) * Math.exp(-i/1800);
+    return b;
+  }
+  const NOISE = noiseBuf();
+
+  function burst(t0, dur=0.014, type='high', vol=1){
+    const src = ctx.createBufferSource(); src.buffer = NOISE;
+    const biq = ctx.createBiquadFilter();
+    if (type==='high'){ biq.type='highpass'; biq.frequency.setValueAtTime(2000, t0); }
+    else if (type==='mid'){ biq.type='bandpass'; biq.frequency.setValueAtTime(1100, t0); biq.Q.value=3; }
+    else { biq.type='bandpass'; biq.frequency.setValueAtTime(450, t0); biq.Q.value=2; }
+    const g = env(t0, 0.0008, dur, 0.0001);
+    g.gain.setValueAtTime(vol, t0 + 0.001);
+    src.connect(biq); biq.connect(g); g.connect(master);
+    src.start(t0); src.stop(t0 + Math.max(0.02, dur+0.03));
+  }
+  function slur(t0, dur=0.08){
+    const src = ctx.createBufferSource(); src.buffer = NOISE;
+    const biq = ctx.createBiquadFilter(); biq.type='bandpass'; biq.frequency.setValueAtTime(800, t0); biq.Q.value=6;
+    biq.frequency.linearRampToValueAtTime(2600, t0 + dur*0.8);
+    const g = env(t0, 0.002, dur, 0.0001);
+    src.connect(biq); biq.connect(g); g.connect(master);
+    src.start(t0); src.stop(t0 + dur + 0.05);
+  }
+  const clicks = {
+    dental: (t)=>burst(t,0.012,'high',1.0),
+    side:   (t)=>burst(t,0.015,'mid',0.95),
+    palate: (t)=>burst(t,0.020,'low',1.05),
+    cheek:  (t)=>{ burst(t,0.012,'mid',1.0); burst(t+0.006,0.012,'mid',0.9); },
+    slur
+  };
+  return { ctx, master, now, clicks };
+})();
+
+/* ===== Symbol Player ===== */
+function playSymbol(sym, t, unit){
+  const C = Audio.clicks;
+  switch(sym){
+    case '·': C.dental(t); return t + unit*1.0;
+    case '~': C.slur(t, unit*0.8); return t + unit*1.0;
+    case '>': C.side(t); return t + unit*1.0;
+    case '^': C.palate(t); return t + unit*1.05;
+    case '=': C.cheek(t); return t + unit*1.05;
+    case '—': C.dental(t); C.slur(t+unit*0.25, unit*0.9); return t + unit*1.8;
+    default: return t + unit*0.7;
+  }
+}
+
+/* ===== Click Kana (5×5 chart) ===== */
+const KANA = {
+  'KA':'·~','KE':'·~·','KI':'·~~','KO':'·^~','KU':'·>~',
+  'TA':'··~','TE':'··~·','TI':'··~~','TO':'··^~','TU':'··>~',
+  'SA':'>~','SE':'>~·','SI':'>~~','SO':'>^~','SU':'>>~',
+  'MA':'=~','ME':'=~·','MI':'=~~','MO':'=^~','MU':'=>~',
+  'NA':'^~','NE':'^~·','NI':'^~~','NO':'^^~','NU':'^>~'
+};
+/* A–Z rhythmic (Letter mode) */
+const LETTER = {
+  A:'·',B:'··',C:'···',D:'—',E:'·—',F:'—·',
+  G:'····',H:'··—',I:'—··',J:'·—·',K:'—···',L:'·—··',
+  M:'——',N:'·——',O:'——·',P:'··—·',Q:'—·—',R:'·—···',
+  S:'···—',T:'—··—',U:'·—·—',V:'··—··',W:'—···—',
+  X:'··——',Y:'——··',Z:'·—·—·'
+};
+
+/* ===== Toki Pona Parser → Click Kana ===== */
+const CONS_MAP = { k:'K', t:'T', s:'S', m:'M', n:'N', p:'K', l:'S', w:'M', j:'S' };
+const VOWELS = new Set(['a','e','i','o','u']);
+function tokiToKanaPatterns(text){
+  const cleaned = text.toLowerCase().replace(/[^a-z \n\.\!\?\,\:;\/]/g,' ').replace(/\s+/g,' ').trim();
+  if (!cleaned) return [];
+  const words = cleaned.split(/\s+/);
+  const patterns = [];
+  for (let w of words){
+    if (w === '/' ) { patterns.push(''); continue; }
+    if (/^[\.\!\?\,\:;]$/.test(w)) { patterns.push(''); continue; }
+    let i=0;
+    while (i<w.length){
+      const c = w[i];
+      if (c==='n' && (i===w.length-1 || !VOWELS.has(w[i+1]))){ patterns.push('^'); i++; continue; }
+      if (VOWELS.has(c)){ patterns.push(vowelToPattern(c)); i++; continue; }
+      const cons = c, next = w[i+1];
+      if (CONS_MAP[cons] && VOWELS.has(next)){
+        const syl = CONS_MAP[cons] + next.toUpperCase();
+        if (KANA[syl]) patterns.push(KANA[syl]);
+        i+=2;
+        if (w[i]==='n' && (i===w.length-1 || !VOWELS.has(w[i+1]))){ patterns.push('^'); i++; }
+        continue;
+      }
+      i++;
+    }
+    patterns.push('');
+  }
+  if (patterns.length && patterns[patterns.length-1]==='') patterns.pop();
+  return patterns;
+}
+function vowelToPattern(v){
+  return ({a:'·~', e:'~·', i:'~~', o:'^~', u:'>~'})[v] || '·~';
+}
+
+/* ===== Parse kana/letters ===== */
+function parseKana(input){
+  const raw = input.toUpperCase().replace(/[^A-Z/ \n]+/g,' ');
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  const patterns=[];
+  for (const tok of tokens){
+    if (tok==='/'||tok==='//'){ patterns.push(''); continue; }
+    if (KANA[tok]) { patterns.push(KANA[tok]); continue; }
+    for (let i=0;i<tok.length;i+=2){
+      const z = tok.slice(i,i+2);
+      if (KANA[z]) patterns.push(KANA[z]);
+    }
+    patterns.push('');
+  }
+  if (patterns.length && patterns[patterns.length-1]==='') patterns.pop();
+  return patterns;
+}
+function parseLetters(input){
+  const up = input.toUpperCase(); const arr=[];
+  for (const ch of up){ if (ch===' '||ch==='\n'){ arr.push(''); continue; } if (LETTER[ch]) arr.push(LETTER[ch]); }
+  return arr;
+}
+
+/* ===== Latin → UCSUR (full map) ===== */
+const UCSUR_MAP = {
+  "a":"\u{F1900}","akesi":"\u{F1901}","ala":"\u{F1902}","alasa":"\u{F1903}","ale":"\u{F1904}","ali":"\u{F1904}",
+  "anpa":"\u{F1905}","ante":"\u{F1906}","anu":"\u{F1907}","awen":"\u{F1908}","e":"\u{F1909}","en":"\u{F190A}",
+  "esun":"\u{F190B}","ijo":"\u{F190C}","ike":"\u{F190D}","ilo":"\u{F190E}","insa":"\u{F190F}","jaki":"\u{F1910}",
+  "jan":"\u{F1911}","jelo":"\u{F1912}","jo":"\u{F1913}","kala":"\u{F1914}","kalama":"\u{F1915}","kama":"\u{F1916}",
+  "kasi":"\u{F1917}","ken":"\u{F1918}","kepeken":"\u{F1919}","kili":"\u{F191A}","kiwen":"\u{F191B}","ko":"\u{F191C}",
+  "kon":"\u{F191D}","kule":"\u{F191E}","kulupu":"\u{F191F}","kute":"\u{F1920}","la":"\u{F1921}","lape":"\u{F1922}",
+  "laso":"\u{F1923}","lawa":"\u{F1924}","len":"\u{F1925}","lete":"\u{F1926}","li":"\u{F1927}","lili":"\u{F1928}",
+  "linja":"\u{F1929}","lipu":"\u{F192A}","loje":"\u{F192B}","lon":"\u{F192C}","luka":"\u{F192D}","lukin":"\u{F192E}",
+  "lupa":"\u{F192F}","ma":"\u{F1930}","mama":"\u{F1931}","mani":"\u{F1932}","meli":"\u{F1933}","mi":"\u{F1934}",
+  "mije":"\u{F1935}","moku":"\u{F1936}","moli":"\u{F1937}","monsi":"\u{F1938}","mu":"\u{F1939}","mun":"\u{F193A}",
+  "musi":"\u{F193B}","mute":"\u{F193C}","nanpa":"\u{F193D}","nasa":"\u{F193E}","nasin":"\u{F193F}","nena":"\u{F1940}",
+  "ni":"\u{F1941}","nimi":"\u{F1942}","noka":"\u{F1943}","o":"\u{F1944}","olin":"\u{F1945}","ona":"\u{F1946}",
+  "open":"\u{F1947}","pakala":"\u{F1948}","pali":"\u{F1949}","palisa":"\u{F194A}","pan":"\u{F194B}","pana":"\u{F194C}",
+  "pi":"\u{F194D}","pilin":"\u{F194E}","pimeja":"\u{F194F}","pini":"\u{F1950}","pipi":"\u{F1951}","poka":"\u{F1952}",
+  "poki":"\u{F1953}","pona":"\u{F1954}","pu":"\u{F1955}","sama":"\u{F1956}","seli":"\u{F1957}","selo":"\u{F1958}",
+  "seme":"\u{F1959}","sewi":"\u{F195A}","sijelo":"\u{F195B}","sike":"\u{F195C}","sin":"\u{F195D}","sina":"\u{F195E}",
+  "sinpin":"\u{F195F}","sitelen":"\u{F1960}","sona":"\u{F1961}","soweli":"\u{F1962}","suli":"\u{F1963}","suno":"\u{F1964}",
+  "supa":"\u{F1965}","suwi":"\u{F1966}","tan":"\u{F1967}","taso":"\u{F1968}","tawa":"\u{F1969}","telo":"\u{F196A}",
+  "tenpo":"\u{F196B}","toki":"\u{F196C}","tomo":"\u{F196D}","tu":"\u{F196E}","unpa":"\u{F196F}","uta":"\u{F1970}",
+  "utala":"\u{F1971}","walo":"\u{F1972}","wan":"\u{F1973}","waso":"\u{F1974}","wawa":"\u{F1975}","weka":"\u{F1976}",
+  "wile":"\u{F1977}",
+  "namako":"\u{F1978}","kin":"\u{F1979}","oko":"\u{F197A}","kipisi":"\u{F197B}","leko":"\u{F197C}","monsuta":"\u{F197D}",
+  "tonsi":"\u{F197E}","jasima":"\u{F197F}","kijetesantakalu":"\u{F1980}","soko":"\u{F1981}","meso":"\u{F1982}",
+  "epiku":"\u{F1983}","kokosila":"\u{F1984}","lanpan":"\u{F1985}","n":"\u{F1986}","misikeke":"\u{F1987}","ku":"\u{F1988}"
+};
+// meanings for hover tooltips (short glosses)
+const MEANINGS = {
+  a:"ah! (interj)", akesi:"reptile; non-cute animal", ala:"no; not; zero", alasa:"hunt; forage",
+  ale:"all; everything", ali:"all; everything", anpa:"low; below", ante:"different; change",
+  anu:"or", awen:"stay; continue; keep", e:"(obj marker)", en:"and (subjects)", esun:"market; trade",
+  ijo:"thing; object", ike:"bad; complex", ilo:"tool; device", insa:"inside; stomach",
+  jaki:"dirty; gross", jan:"person; human", jelo:"yellow", jo:"have; carry",
+  kala:"fish; aquatic", kalama:"sound; noise", kama:"come; become", kasi:"plant; leaf",
+  ken:"can; possible", kepeken:"use; with", kili:"fruit; vegetable", kiwen:"hard; rock; metal",
+  ko:"paste; powder", kon:"air; spirit", kule:"color; gender", kulupu:"group; community",
+  kute:"hear; listen", la:"(context)", lape:"sleep; rest", laso:"blue/green",
+  lawa:"head; lead", len:"cloth; clothing", lete:"cold; uncooked", li:"(pred marker)",
+  lili:"small; little", linja:"line; cord; hair", lipu:"paper; book; card", loje:"red",
+  lon:"be/at; true", luka:"hand; arm; five", lukin:"see; look; read", lupa:"hole; door",
+  ma:"land; earth; country", mama:"parent; creator", mani:"money; wealth", meli:"woman; female",
+  mi:"I; me", mije:"man; male", moku:"eat; food", moli:"die; kill; dead",
+  monsi:"back; behind", mu:"animal sound", mun:"moon; star", musi:"play; fun; art",
+  mute:"many; very", nanpa:"number; -th", nasa:"silly; strange", nasin:"way; method; path",
+  nena:"bump; nose; hill", ni:"this; that", nimi:"name; word", noka:"foot; leg",
+  o:"vocative; imperative", olin:"love", ona:"he/she/they", open:"open; begin",
+  pakala:"break; damage; mess", pali:"do; work; make", palisa:"stick; rod",
+  pan:"grain; bread", pana:"give; send; put", pi:"of (group)", pilin:"feel; heart",
+  pimeja:"black; dark", pini:"end; finish", pipi:"bug; insect", poka:"side; with",
+  poki:"box; container", pona:"good; simple; fix", pu:"use official book",
+  sama:"same; similar", seli:"fire; heat; cook", selo:"skin; outer layer",
+  seme:"what? which?", sewi:"high; holy", sijelo:"body", sike:"circle; cycle",
+  sin:"new; fresh", sina:"you", sinpin:"front; face; wall", sitelen:"draw; write; picture",
+  sona:"know; wisdom", soweli:"animal; mammal", suli:"big; important", suno:"sun; light",
+  supa:"surface; table", suwi:"sweet; cute", tan:"from; because", taso:"but; only",
+  tawa:"to; move; toward", telo:"water; liquid", tenpo:"time; moment", toki:"speak; language",
+  tomo:"house; building", tu:"two; separate", unpa:"sex", uta:"mouth",
+  utala:"fight; battle", walo:"white; pale", wan:"one; unite", waso:"bird",
+  wawa:"strong; energy", weka:"away; remove", wile:"want; need; must",
+  // ku suli / extras
+  namako:"extra; garnish; spice", kin:"also; indeed", oko:"eye", kipisi:"cut; split",
+  leko:"brick; block; stairs", monsuta:"fear; monster", tonsi:"non-binary; GNC",
+  jasima:"reflect; mirror", kijetesantakalu:"raccoon (playful)", soko:"mushroom; fungus",
+  meso:"middle; medium; neutral", epiku:"epic; awesome", kokosila:"speak non-TP in TP context",
+  lanpan:"seize; take", n:"hmm; hesitation", misikeke:"medicine; medical", ku:"interact with “ku”"
+};
+
+/* Detect PUA codepoints (BMP & supplementary) */
+function hasPUA(str){
+  for (const ch of str){
+    const cp = ch.codePointAt(0);
+    if ((cp>=0xE000 && cp<=0xF8FF) || (cp>=0xF0000 && cp<=0x10FFFD)) return true;
+  }
+  return false;
+}
+/* Latin → UCSUR (preserves punctuation/spaces) */
+function toSitelenUCSUR(input){
+  return input.replace(/[A-Za-z]+/g, w => UCSUR_MAP[w.toLowerCase()] || w);
+}
+function showSitelenPreview(text){
+  const el = document.getElementById('spGlyph');
+  const converted = toSitelenUCSUR(text);
+  if (hasPUA(converted)){
+    el.classList.add('bigglyph');
+    el.textContent = converted;
+  } else {
+    el.classList.remove('bigglyph');
+    el.textContent = text;
+  }
+}
+function wordToGlyph(word){
+  return UCSUR_MAP[word.toLowerCase()] || word;
+}
+
+/* ===== Sequencer & UI ===== */
+let playing=false, kill=0;
+const el = {
+  text: document.getElementById('text'),
+  mode: document.getElementById('mode'),
+  tempo: document.getElementById('tempo'),
+  volume: document.getElementById('volume'),
+  play: document.getElementById('play'),
+  stop: document.getElementById('stop'),
+  tokens: document.getElementById('tokens'),
+  bar: document.getElementById('bar'),
+  ex1: document.getElementById('ex1'),
+  list: document.getElementById('list'),
+  q: document.getElementById('q'),
+  clear: document.getElementById('clear'),
+  spGlyph: document.getElementById('spGlyph'),
+  testGlyph: document.getElementById('testGlyph')
+};
+
+function renderTokens(patterns){
+  if (!patterns.length){ el.tokens.innerHTML = '<span class="hint">Nothing parsed…</span>'; return; }
+  const pills = patterns.map(p=> p.trim()===''
+    ? `<span class="pill mono">/</span>`
+    : `<span class="pill mono">${p.replaceAll('<','&lt;').replaceAll('>','&gt;')}</span>`
+  ).join(' ');
+  el.tokens.innerHTML = pills;
+}
+function updateBar(done,total){
+  const pct = Math.max(0, Math.min(100, (done/Math.max(1,total))*100));
+  el.bar.style.width = pct.toFixed(1)+'%';
+}
+async function play(patterns, unitMs, vol){
+  if (playing) return;
+  playing = true; kill++;
+  const my = kill;
+  Audio.master.gain.setTargetAtTime(vol, Audio.now(), 0.01);
+  const unit = unitMs/1000;
+  let t = Audio.now() + 0.05;
+  let u = 0;
+  for (const pat of patterns){
+    if (kill!==my) break;
+    if (pat.trim()===''){ t += unit*2.0; u+=2; updateBar(u, patterns.length*1.6); await pause(unit*350); continue; }
+    for (const s of pat){
+      if (kill!==my) break;
+      if ('·~>^=—'.includes(s)){ t = playSymbol(s, t, unit); u+=1; updateBar(u, patterns.length*1.6); await pause(unit*400); }
+    }
+    t += unit*0.6; u+=0.6;
+  }
+  playing=false; updateBar(0,1);
+}
+const pause = (ms)=>new Promise(r=>setTimeout(r,ms));
+
+function parseCurrent(){
+  const mode = el.mode.value;
+  const txt = el.text.value;
+  let pats = [];
+  if (mode==='toki') pats = tokiToKanaPatterns(txt);
+  else if (mode==='kana') pats = parseKana(txt);
+  else pats = parseLetters(txt);
+  renderTokens(pats);
+  showSitelenPreview(txt);
+  return pats;
+}
+
+/* Events */
+el.play.addEventListener('click', ()=>{ const p = parseCurrent(); if (!p.length) return;
+  Audio.ctx.resume(); play(p, Number(el.tempo.value||90), Number(el.volume.value||0.85)); });
+el.stop.addEventListener('click', ()=>{ kill++; playing=false; updateBar(0,1); });
+el.text.addEventListener('input', parseCurrent);
+el.mode.addEventListener('change', parseCurrent);
+el.volume.addEventListener('input', ()=>Audio.master.gain.setTargetAtTime(Number(el.volume.value), Audio.now(), 0.01));
+el.ex1 && el.ex1.addEventListener('click', ()=>{
+  if (el.mode.value==='toki'){ el.text.value = 'toki pona li pona! jan li toki.'; }
+  else if (el.mode.value==='kana'){ el.text.value = 'TA KU / KO SU / NA ME'; }
+  else { el.text.value = 'GOAT SIGNAL'; }
+  parseCurrent();
+});
+document.addEventListener('keydown', (e)=>{
+  if (e.key==='Enter' && (e.ctrlKey||e.metaKey||!e.shiftKey)){ e.preventDefault(); el.play.click(); }
+  else if (e.key==='Escape'){ e.preventDefault(); el.stop.click(); }
+});
+el.testGlyph.addEventListener('click', ()=>{
+  el.spGlyph.classList.add('bigglyph');
+  el.spGlyph.textContent = '\uF196C';
+});
+document.fonts.ready.then(()=>{
+  console.log('NasinNanpa loaded?', document.fonts.check('16px "NasinNanpa"'));
+});
+
+/* ===== Symbols Browser (with hover meanings) ===== */
+const WORDS = [
+  "a","akesi","ala","alasa","ale","anpa","ante","anu","awen","e","en","esun","ijo","ike","ilo","insa","jaki","jan","jelo","jo",
+  "kala","kalama","kama","kasi","ken","kepeken","kili","kiwen","ko","kon","kule","kulupu","kute","la","lape","laso","lawa","len","lete",
+  "li","lili","linja","lipu","loje","lon","luka","lukin","lupa","ma","mama","mani","meli","mi","mije","moku","moli","monsi","mu","mun",
+  "musi","mute","nanpa","nasa","nasin","nena","ni","nimi","noka","o","olin","ona","open","pakala","pali","palisa","pan","pana","pi","pilin",
+  "pimeja","pini","pipi","poka","poki","pona","pu","sama","seli","selo","seme","sewi","sijelo","sike","sin","sina","sinpin","sitelen",
+  "sona","soweli","suli","suno","supa","suwi","tan","taso","tawa","telo","tenpo","toki","tomo","tu","unpa","uta","utala","walo","wan",
+  "waso","wawa","weka","wile",
+  "namako","kin","oko","kipisi","leko","monsuta","tonsi","jasima","kijetesantakalu","soko","meso","epiku","kokosila","lanpan","n","misikeke","ku"
+];
+
+const elList = document.getElementById('list');
+const elQ = document.getElementById('q');
+const elClear = document.getElementById('clear');
+
+function renderList(){
+  const q = elQ.value.trim().toLowerCase();
+  const filtered = WORDS.filter(w => !q || w.includes(q));
+  elList.innerHTML = filtered.map(w=> {
+    const glyphCandidate = wordToGlyph(w);
+    const has = hasPUA(glyphCandidate);
+    const gloss = MEANINGS[w] || w;
+    const glyphHtml = has
+      ? `<span class="glyph" title="${w} — ${gloss}">${glyphCandidate}</span>`
+      : `<span class="glyph" style="font-family:inherit" title="${w} — ${gloss}">${w}</span>`;
+    return `<div class="item" data-w="${w}" title="${w} — ${gloss}" aria-label="${w} — ${gloss}">
+      <span class="sym-word">${w}</span>${glyphHtml}
+    </div>`;
+  }).join('');
+  elList.querySelectorAll('.item').forEach(div=>{
+    div.addEventListener('click',()=>{
+      const w = div.getAttribute('data-w');
+      const start = el.text.selectionStart, end = el.text.selectionEnd;
+      const val = el.text.value;
+      const inject = (start==null) ? (val + (val.endsWith(' ')?'':' ') + w + ' ') :
+        val.slice(0,start) + w + ' ' + val.slice(end);
+      el.text.value = inject;
+      parseCurrent();
+      Audio.ctx.resume();
+      const mode = el.mode.value;
+      const pats = (mode==='toki') ? tokiToKanaPatterns(w) : (mode==='kana' ? parseKana(w) : parseLetters(w));
+      if (pats.length) play(pats, Number(el.tempo.value||90), Number(el.volume.value||0.85));
+    })
+  });
+}
+elQ.addEventListener('input', renderList);
+elClear.addEventListener('click', ()=>{ elQ.value=''; renderList(); });
+
+/* init */
+el.text.value = 'toki pona li pona! jan li toki.';
+renderList();
+parseCurrent();
+</script>
+</body>
+</html>
