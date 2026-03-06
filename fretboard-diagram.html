@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fretboard Note Toggle</title>
+  <style>
+    :root {
+      --bg: #f2f2f2;
+      --grid: #bdbdbd;
+      --text: #111111;
+      --note-border: #111111;
+      --note-fill: #ffffff;
+      --accidental-border: #111111;
+      --accidental-fill: #ffffff;
+      --active: #2e77a9;
+      --active-fill: #eaf4fb;
+      --shadow: rgba(0, 0, 0, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
+
+    .app {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      background: white;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 10px 24px var(--shadow);
+      overflow-x: auto;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    p {
+      margin: 0 0 18px;
+      line-height: 1.5;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    button {
+      border: 1px solid #c8c8c8;
+      background: #fff;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:hover {
+      background: #f1f1f1;
+    }
+
+    .board-wrap {
+      min-width: 1100px;
+    }
+
+    .marker-dot {
+      width: 12px;
+      height: 12px;
+    }
+
+    .marker-double-wrap {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .marker-dot-double {
+      width: 10px;
+      height: 10px;
+    }
+
+    .fret-labels {
+      display: grid;
+      grid-template-columns: 60px repeat(19, 1fr);
+      gap: 0;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #4d4d4d;
+      align-items: center;
+    }
+
+    .fret-label,
+    .string-label {
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .strings {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 14px;
+    }
+
+    .string-name {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 22px;
+      color: #111111;
+    }
+
+    .string-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(19, 1fr);
+      align-items: center;
+      min-height: 64px;
+    }
+
+    .string-row::before {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 50%;
+      height: 4px;
+      background: #8f8f8f;
+      transform: translateY(-50%);
+      z-index: 0;
+      border-radius: 999px;
+    }
+
+    .note-cell {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 64px;
+    }
+
+    .note-cell:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      right: -1px;
+      width: 3px;
+      background: #bdbdbd;
+      border-radius: 999px;
+      z-index: 0;
+    }
+
+    .note {
+      position: relative;
+      z-index: 1;
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      border: 2px solid var(--note-border);
+      background: var(--note-fill);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .note.accidental {
+      border-color: var(--accidental-border);
+      background: var(--accidental-fill);
+      color: #111111;
+    }
+
+    .note:hover {
+      transform: scale(1.06);
+    }
+
+    .note.active {
+      border: 4px solid var(--active);
+      background: var(--active-fill);
+      color: #0f4f79;
+      box-shadow: 0 0 0 4px rgba(46, 119, 169, 0.12);
+    }
+
+    .key-btn.active {
+      background: var(--active-fill);
+      border-color: var(--active);
+      color: #0f4f79;
+    }
+
+    .status {
+      margin-top: 18px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #f7f7f7;
+      border: 1px solid #d8d8d8;
+      font-size: 14px;
+    }
+
+    .status strong {
+      display: inline-block;
+      margin-right: 8px;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        padding: 12px;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+
+      .panel {
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="panel">
+      <h1>Fretboard Note Toggle</h1>
+      <p>Click any note to toggle it on or off. This models the fretboard diagram you provided using standard tuning: G, D, A, E from top to bottom.</p>
+
+      <div class="toolbar">
+        <button id="clearBtn" type="button">Clear all</button>
+        <button class="key-btn" data-key="C" type="button">C Major</button>
+        <button class="key-btn" data-key="D" type="button">D Major</button>
+        <button class="key-btn" data-key="E" type="button">E Major</button>
+        <button class="key-btn" data-key="F" type="button">F Major</button>
+        <button class="key-btn" data-key="G" type="button">G Major</button>
+        <button class="key-btn" data-key="A" type="button">A Major</button>
+        <button class="key-btn" data-key="B" type="button">B Major</button>
+      </div>
+
+      <div class="board-wrap">
+        <div id="stringsContainer"></div>
+        <div class="fret-labels" id="fretLabels"></div>
+      </div>
+
+      <div class="status" id="status"><strong>Selected:</strong> none</div>
+    </div>
+  </div>
+
+  <script>
+    const chromatic = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"];
+    const openStrings = ["G", "D", "A", "E"];
+    const totalFrets = 19;
+
+    const fretLabels = document.getElementById("fretLabels");
+    const stringsContainer = document.getElementById("stringsContainer");
+    const status = document.getElementById("status");
+
+    function noteAtFret(openNote, fret) {
+      const startIndex = chromatic.indexOf(openNote);
+      return chromatic[(startIndex + fret) % chromatic.length];
+    }
+
+    function buildFretLabels() {
+      fretLabels.innerHTML = "";
+
+      const lead = document.createElement("div");
+      lead.className = "fret-label";
+      lead.textContent = "Frets";
+      fretLabels.appendChild(lead);
+
+      for (let fret = 1; fret <= totalFrets; fret += 1) {
+        const label = document.createElement("div");
+        label.className = "fret-label";
+        label.textContent = fret;
+        fretLabels.appendChild(label);
+      }
+    }
+    function createNoteButton(note, stringName, fret) {
+      const button = document.createElement("button");
+      button.className = `note${/[♭#]/.test(note) ? " accidental" : ""}`;
+      button.type = "button";
+      button.textContent = note;
+      button.dataset.note = note;
+      button.dataset.string = stringName;
+      button.dataset.fret = fret;
+      button.setAttribute("aria-pressed", "false");
+      button.title = `${stringName} string, fret ${fret}, note ${note}`;
+
+      button.addEventListener("click", () => {
+        button.classList.toggle("active");
+        button.setAttribute(
+          "aria-pressed",
+          button.classList.contains("active") ? "true" : "false"
+        );
+        updateStatus();
+      });
+
+      return button;
+    }
+
+    function buildBoard() {
+      stringsContainer.innerHTML = "";
+
+      openStrings.forEach((stringName) => {
+        const row = document.createElement("div");
+        row.className = "strings";
+
+        const label = document.createElement("div");
+        label.className = "string-name";
+        label.textContent = stringName;
+
+        const stringRow = document.createElement("div");
+        stringRow.className = "string-row";
+
+        for (let fret = 1; fret <= totalFrets; fret += 1) {
+          const cell = document.createElement("div");
+          cell.className = "note-cell";
+          const note = noteAtFret(stringName, fret);
+          cell.appendChild(createNoteButton(note, stringName, fret));
+          stringRow.appendChild(cell);
+        }
+
+        row.appendChild(label);
+        row.appendChild(stringRow);
+        stringsContainer.appendChild(row);
+      });
+    }
+
+    function updateStatus() {
+      const active = [...document.querySelectorAll(".note.active")].map((el) => {
+        return `${el.dataset.note} (${el.dataset.string}:${el.dataset.fret})`;
+      });
+
+      status.innerHTML = `<strong>Selected:</strong> ${active.length ? active.join(", ") : "none"}`;
+    }
+
+    function clearAll() {
+      document.querySelectorAll(".note.active").forEach((el) => {
+        el.classList.remove("active");
+        el.setAttribute("aria-pressed", "false");
+      });
+
+      document.querySelectorAll(".key-btn.active").forEach((el) => {
+        el.classList.remove("active");
+      });
+
+      updateStatus();
+    }
+
+    function selectMajorKey(rootNote) {
+      clearAll();
+
+      document.querySelectorAll(".note").forEach((el) => {
+        if (el.dataset.note === rootNote) {
+          el.classList.add("active");
+          el.setAttribute("aria-pressed", "true");
+        }
+      });
+
+      document.querySelectorAll(".key-btn").forEach((el) => {
+        el.classList.toggle("active", el.dataset.key === rootNote);
+      });
+
+      updateStatus();
+    }
+
+    document.getElementById("clearBtn").addEventListener("click", clearAll);
+
+    document.querySelectorAll(".key-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        selectMajorKey(button.dataset.key);
+      });
+    });
+
+    buildFretLabels();
+    buildBoard();
+    updateStatus();
+  </script>
+</body>
+</html>
